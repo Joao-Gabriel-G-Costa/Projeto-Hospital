@@ -1,0 +1,1 @@
+package br.edu.mediconnect.patterns.observer; public class PatientNotificationObserver implements HospitalObserver { public void update(String id,String event){System.out.println("PATIENT ALERT "+id+" "+event);} }

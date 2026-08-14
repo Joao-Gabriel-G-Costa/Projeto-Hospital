@@ -1,0 +1,2 @@
+package br.edu.mediconnect; import br.edu.mediconnect.model.Appointment; import br.edu.mediconnect.patterns.observer.*; import br.edu.mediconnect.patterns.strategy.*;
+public class DiagnosticChecks { public static void main(String[] args){ HospitalPublisher p=new HospitalPublisher();p.subscribe(new PatientNotificationObserver());p.subscribe(new AuditObserver());p.publish("X1","TEST"); TriageEngine t=new TriageEngine();t.setStrategy(a->1);Appointment a=new Appointment("A","P","D","now","EMERGENCY");System.out.println("Score emergency: "+t.calculate(a)); } }

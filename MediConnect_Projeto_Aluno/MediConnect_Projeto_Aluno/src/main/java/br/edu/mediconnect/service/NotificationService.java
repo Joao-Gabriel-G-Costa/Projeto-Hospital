@@ -1,0 +1,2 @@
+package br.edu.mediconnect.service; import br.edu.mediconnect.legacy.WhatsappHospitalApi;
+public class NotificationService { public void notify(String channel,String destination,String text){ if("EMAIL".equals(channel)) System.out.println("EMAIL "+destination+": "+text); else if("SMS".equals(channel)) System.out.println("SMS "+destination+": "+text); else if("WHATSAPP".equals(channel)) new WhatsappHospitalApi().sendMessage(destination,text); } }
