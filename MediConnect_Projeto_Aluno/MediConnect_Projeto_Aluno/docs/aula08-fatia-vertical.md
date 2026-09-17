@@ -340,7 +340,7 @@ A implementação funcional utilizada nesta atividade continua sendo a interface
 
 ---
 
-## 9. Modelo da fatia vertical
+## 9. Diagrama de Classes
 
 ```mermaid
 classDiagram
@@ -746,9 +746,95 @@ Não fazem parte desta fatia:
 
 Esses pontos podem ser tratados em evoluções futuras.
 
+## 21. Diagrama de Atividade
+
+O diagrama de atividade representa o fluxo realizado pelo usuário durante o agendamento de uma consulta.
+
+```mermaid
+flowchart TD
+
+    Start(("Início"))
+
+    Menu["Acessar menu principal"]
+
+    SelectOption["Selecionar Agendar consulta"]
+
+    SelectPatient["Selecionar paciente"]
+
+    PatientValid{"Paciente válido?"}
+
+    SelectDoctor["Selecionar médico"]
+
+    DoctorValid{"Médico válido?"}
+
+    EnterDate["Informar data"]
+
+    DateValid{"Data válida?"}
+
+    EnterTime["Informar horário"]
+
+    TimeValid{"Horário válido?"}
+
+    GenerateId["Gerar ID da consulta"]
+
+    Summary["Exibir resumo"]
+
+    Confirm{"Confirmar agendamento?"}
+
+    Create["Criar Appointment"]
+
+    Schedule["Executar agendamento"]
+
+    Scheduled{"Agendamento realizado?"}
+
+    Success["Exibir sucesso"]
+
+    Error["Exibir erro"]
+
+    Cancel["Cancelar operação"]
+
+    End(("Fim"))
+
+    Start --> Menu
+    Menu --> SelectOption
+    SelectOption --> SelectPatient
+
+    SelectPatient --> PatientValid
+    PatientValid -- Não --> SelectPatient
+    PatientValid -- Sim --> SelectDoctor
+
+    SelectDoctor --> DoctorValid
+    DoctorValid -- Não --> SelectDoctor
+    DoctorValid -- Sim --> EnterDate
+
+    EnterDate --> DateValid
+    DateValid -- Não --> EnterDate
+    DateValid -- Sim --> EnterTime
+
+    EnterTime --> TimeValid
+    TimeValid -- Não --> EnterTime
+    TimeValid -- Sim --> GenerateId
+
+    GenerateId --> Summary
+    Summary --> Confirm
+
+    Confirm -- Não --> Cancel
+    Cancel --> End
+
+    Confirm -- Sim --> Create
+    Create --> Schedule
+
+    Schedule --> Scheduled
+
+    Scheduled -- Sim --> Success
+    Scheduled -- Não --> Error
+
+    Success --> End
+    Error --> End
+```
 ---
 
-## 21. Conclusão
+## 22. Conclusão
 
 A Aula 08 evoluiu o requisito RF01 de uma funcionalidade que existia principalmente no código para uma fatia vertical utilizável e executável.
 
