@@ -6,24 +6,47 @@ Aceito.
 
 ## Contexto
 
-O MediConnect possui diferentes componentes responsáveis pela coordenação dos processos hospitalares, armazenamento de dados, notificações e integração com sistemas externos. Essas responsabilidades estão distribuídas entre classes como `MediConnectFacade`, `HospitalApplicationService`, repositórios em memória, serviços de notificação, adapters e observadores.
+O MediConnect possui diferentes classes responsáveis pela coordenação dos processos hospitalares, armazenamento de dados, notificações, integrações externas e publicação de eventos.
 
-Sem uma representação clara dessas ligações, fica mais difícil compreender a estrutura do sistema e identificar como os componentes dependem e interagem entre si.
+Essas responsabilidades estão distribuídas entre elementos como:
+
+- `MediConnectFacade`;
+- `HospitalApplicationService`;
+- repositórios em memória;
+- `NotificationService`;
+- adapters;
+- publisher e observers.
+
+Sem uma representação clara dessas relações, torna-se mais difícil compreender a estrutura atual do sistema, identificar as responsabilidades de cada componente e visualizar como eles interagem.
+
+A necessidade desta atividade é documentar a estrutura existente sem modificar o comportamento do sistema apenas para adequá-lo a um modelo arquitetural.
 
 ## Decisão
 
-A estrutura atual do MediConnect será documentada considerando seus principais componentes, suas responsabilidades, conectores e configurações existentes.
+A estrutura atual do MediConnect será documentada através da identificação dos seus principais componentes, conectores e configurações.
 
-A `MediConnectFacade` será considerada o ponto de acesso às funcionalidades principais, enquanto a `HospitalApplicationService` continuará responsável por coordenar os fluxos da aplicação e interagir com repositórios, serviços, adapters e o mecanismo de publicação de eventos.
+A `MediConnectFacade` será considerada o ponto de acesso às funcionalidades principais da aplicação.
 
-As integrações externas permanecerão isoladas pelos adapters e serviços já existentes, sem introdução de novas tecnologias ou padrões apenas para esta modelagem.
+A `HospitalApplicationService` continuará sendo representada como o componente responsável por coordenar os principais fluxos hospitalares e por interagir com:
 
-### Diagrama dos componentes
+- repositórios;
+- serviço de notificações;
+- adapters de integração;
+- mecanismo de publicação de eventos.
+
+As integrações externas continuarão sendo representadas através dos adapters e serviços existentes no projeto.
+
+Não serão introduzidos novos componentes ou tecnologias apenas para atender à modelagem da atividade.
+
+## Diagrama dos componentes
 
 ```mermaid
-flowchart TD
+flowchart LR
+
+    Main[Main]
 
     Facade[MediConnectFacade]
+
     Service[HospitalApplicationService]
 
     PatientRepo[InMemoryPatientRepository]
@@ -34,14 +57,19 @@ flowchart TD
     HealthAdapter[HealthPlanAdapter]
     LabAdapter[LabAdapter]
 
-    HealthAPI[LegacyHealthPlanApi]
+    HealthLegacy[LegacyHealthPlanApi]
     LabClient[LabXClient]
     WhatsApp[WhatsappHospitalApi]
 
     Publisher[HospitalPublisher]
-    PatientObserver[PatientNotificationObserver]
-    AuditObserver[AuditObserver]
 
+    Observer[HospitalObserver]
+    PatientObserver[PatientNotificationObserver]
+    Audit[AuditObserver]
+
+    Main --> Facade
+
+    Facade --> PatientRepo
     Facade --> Service
 
     Service --> PatientRepo
@@ -51,24 +79,93 @@ flowchart TD
     Service --> LabAdapter
     Service --> Publisher
 
-    HealthAdapter --> HealthAPI
-    LabAdapter --> LabClient
     Notification --> WhatsApp
 
-    Publisher --> PatientObserver
-    Publisher --> AuditObserver
+    HealthAdapter --> HealthLegacy
+    LabAdapter --> LabClient
+
+    Publisher --> Observer
+
+    PatientObserver -. implementa .-> Observer
+    Audit -. implementa .-> Observer
 ```
 
-O diagrama representa de forma simplificada as principais relações entre os componentes do MediConnect. A `MediConnectFacade` funciona como ponto de entrada, enquanto a `HospitalApplicationService` coordena as principais operações e se comunica com os demais componentes do sistema.
+O diagrama representa as principais relações existentes no código.
 
-## Alternativa descartada
+O `Main` utiliza a `MediConnectFacade`, que fornece um ponto simplificado de acesso à aplicação.
 
-Reestruturar o código ou criar novos componentes somente para adequar o projeto ao diagrama foi descartado, pois a estrutura atual já permite identificar claramente os componentes e suas interações.
+A `HospitalApplicationService` coordena os principais processos hospitalares e utiliza os demais componentes necessários para realizar essas operações.
 
-Essa alternativa aumentaria a quantidade de alterações e poderia modificar o comportamento do sistema sem uma necessidade funcional que justificasse a mudança.
+O `HospitalPublisher` depende do contrato definido por `HospitalObserver`, enquanto `PatientNotificationObserver` e `AuditObserver` são implementações desse contrato.
+
+## Conectores
+
+Os componentes se comunicam principalmente através de chamadas de métodos Java.
+
+As principais interações são:
+
+- `MediConnectFacade` → `HospitalApplicationService`;
+- `HospitalApplicationService` → repositórios;
+- `HospitalApplicationService` → `NotificationService`;
+- `HospitalApplicationService` → `HealthPlanAdapter`;
+- `HospitalApplicationService` → `LabAdapter`;
+- `HospitalApplicationService` → `HospitalPublisher`;
+- `HealthPlanAdapter` → `LegacyHealthPlanApi`;
+- `LabAdapter` → `LabXClient`;
+- `NotificationService` → `WhatsappHospitalApi`;
+- `HospitalPublisher` → `HospitalObserver`.
+
+## Configuração relevante
+
+A configuração principal do projeto está registrada no arquivo `pom.xml`.
+
+O projeto utiliza:
+
+- Java 17 como versão de compilação;
+- Maven como ferramenta de build;
+- UTF-8 como codificação;
+- JUnit 5 para testes automatizados;
+- Maven Surefire Plugin para execução dos testes;
+- estruturas em memória para persistência;
+- classes que simulam sistemas externos para as integrações.
+
+## Alternativas consideradas
+
+### Reestruturar o sistema para coincidir com um modelo arquitetural novo
+
+Essa alternativa permitiria alterar a organização atual antes de produzir o diagrama.
+
+Foi descartada porque a atividade tem como objetivo identificar e representar os componentes já existentes.
+
+Modificar o código apenas para produzir uma modelagem diferente aumentaria a quantidade de mudanças e poderia alterar o comportamento do projeto sem necessidade funcional.
+
+### Documentar somente as classes principais
+
+Essa alternativa produziria uma representação mais simples.
+
+Foi descartada porque não demonstraria adequadamente os conectores, integrações externas e demais relações importantes para compreender o sistema.
 
 ## Consequências
 
-A arquitetura atual do MediConnect passa a ficar documentada de forma mais clara, facilitando a identificação das responsabilidades e dependências entre os componentes.
+### Positivas
 
-A modelagem também permite relacionar diretamente os elementos arquiteturais às classes e arquivos existentes no projeto. Como consequência, a documentação deverá ser atualizada caso novos componentes sejam adicionados ou as relações entre os componentes atuais sejam modificadas.
+- A estrutura do MediConnect passa a ficar documentada de forma mais clara.
+- As responsabilidades dos principais componentes ficam mais fáceis de identificar.
+- As dependências e integrações podem ser visualizadas através do diagrama.
+- A documentação pode ser relacionada diretamente às classes existentes.
+- A modelagem pode servir como referência para futuras alterações arquiteturais.
+
+### Negativas / trade-offs
+
+- O diagrama representa a estrutura atual e precisará ser atualizado quando o código mudar.
+- A documentação também evidencia problemas já existentes na implementação, mas não os corrige automaticamente.
+- Algumas classes concentram diversas interações, especialmente a `HospitalApplicationService`.
+
+## Evidências relacionadas
+
+- **Modelagem:** `docs/aula05-componentes-conectores.md`
+- **Configuração:** `pom.xml`
+- **Serviço principal:** `src/main/java/br/edu/mediconnect/service/HospitalApplicationService.java`
+- **Fachada:** `src/main/java/br/edu/mediconnect/patterns/facade/MediConnectFacade.java`
+- **Publisher:** `src/main/java/br/edu/mediconnect/patterns/observer/HospitalPublisher.java`
+- **Verificação:** `evidencias/AULA-05-VERIFICACAO.md`

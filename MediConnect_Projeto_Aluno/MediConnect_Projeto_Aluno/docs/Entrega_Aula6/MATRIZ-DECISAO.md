@@ -1,18 +1,26 @@
 # Matriz de Decisão Arquitetural — MediConnect (Aula 06)
 
-## Como foi utilizado
+## 1. Como a matriz foi utilizada
 
-1. Foram escolhidas 3 alternativas arquiteturais aplicáveis (ou descartáveis) ao MediConnect.
-2. Os critérios foram definidos a partir dos RNFs levantados na atividade principal (segurança, desempenho, manutenibilidade, disponibilidade/confiabilidade) mais dois critérios práticos do contexto do projeto (complexidade operacional e custo/esforço de migração).
-3. Cada critério recebeu um peso (1 a 3).
-4. Cada alternativa recebeu uma nota por critério (1 a 5).
-5. Peso × Nota foi calculado célula a célula.
-6. Os resultados de cada alternativa foram somados.
-7. As justificativas de cada nota estão no arquivo `JUSTIFICATIVAS-NOTAS-preenchido.md`.
+Para comparar as alternativas arquiteturais do MediConnect, foram utilizados critérios relacionados aos requisitos não funcionais e ao contexto atual do projeto.
+
+O processo utilizado foi:
+
+1. definição de três alternativas arquiteturais;
+2. escolha dos critérios de avaliação;
+3. definição do peso de cada critério;
+4. atribuição de notas de 1 a 5 para cada alternativa;
+5. cálculo de `Peso × Nota`;
+6. soma dos resultados;
+7. análise dos custos, riscos e trade-offs antes da decisão final.
+
+As justificativas das notas estão registradas em:
+
+`docs/Entrega_Aula6/JUSTIFICATIVAS-NOTAS.md`
 
 ---
 
-## Escala de pesos utilizada
+## 2. Escala de pesos
 
 | Peso | Significado |
 |---:|---|
@@ -20,27 +28,65 @@
 | 2 | Importância média |
 | 3 | Alta importância |
 
-## Escala de notas utilizada
+---
+
+## 3. Escala de notas
 
 | Nota | Significado |
 |---:|---|
 | 1 | Atende fracamente ao critério |
-| 2 | Atende parcialmente |
+| 2 | Atende parcialmente ao critério |
 | 3 | Atende de forma adequada |
-| 4 | Atende bem |
-| 5 | Atende muito bem |
+| 4 | Atende bem ao critério |
+| 5 | Atende muito bem ao critério |
 
 ---
 
-## Alternativas analisadas
+## 4. Alternativas analisadas
 
-- **Alternativa A:** Manter a arquitetura atual do MediConnect — monolito em camadas simples, processo único, chamadas síncronas (Main → MediConnectFacade → HospitalApplicationService → Repositórios/Adapters).
-- **Alternativa B:** Arquitetura orientada a eventos com message broker (fila/tópico) — alternativa considerada e não adotada no `ADR-0001.md`.
-- **Alternativa C:** Microsserviços por domínio (agendamento/exames, laboratório, convênio), comunicando-se via API entre si.
+### Alternativa A — Manter a arquitetura atual
+
+Manter o MediConnect como uma aplicação em camadas simples, executada em processo único e com chamadas síncronas entre seus componentes.
+
+Os problemas identificados seriam tratados através de melhorias internas, sem alteração do estilo arquitetural principal.
+
+### Alternativa B — Arquitetura orientada a eventos
+
+Introduzir comunicação assíncrona utilizando um message broker, filas ou tópicos para publicação e consumo de eventos.
+
+Essa alternativa poderia aumentar o desacoplamento e oferecer mecanismos de reprocessamento, mas exigiria nova infraestrutura e maior complexidade operacional.
+
+### Alternativa C — Microsserviços
+
+Separar partes do sistema em serviços independentes, por exemplo:
+
+- agendamento e consultas;
+- exames;
+- laboratório;
+- convênio.
+
+Os serviços passariam a possuir comunicação e implantação independentes.
+
+Essa alternativa oferece maior isolamento entre domínios, porém aumenta significativamente a complexidade da solução.
 
 ---
 
-## Matriz
+## 5. Critérios utilizados
+
+Foram considerados os seguintes critérios:
+
+- desempenho;
+- segurança;
+- manutenibilidade;
+- disponibilidade/confiabilidade;
+- complexidade operacional;
+- custo/esforço de migração.
+
+Os pesos foram definidos considerando o contexto atual do MediConnect e o impacto de cada critério na evolução do projeto.
+
+---
+
+## 6. Matriz de decisão
 
 | Critério | Peso | Alternativa A | P×N | Alternativa B | P×N | Alternativa C | P×N |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -50,39 +96,119 @@
 | Disponibilidade/Confiabilidade | 2 | 2 | 4 | 4 | 8 | 3 | 6 |
 | Complexidade operacional | 3 | 5 | 15 | 2 | 6 | 2 | 6 |
 | Custo/esforço de migração | 2 | 5 | 10 | 2 | 4 | 2 | 4 |
-| **TOTAL** | | | **49** | | **36** | | **31** |
-
+| **TOTAL** |  |  | **49** |  | **36** |  | **31** |
 
 ---
 
-## Exemplo do cálculo
+## 7. Exemplo de cálculo
+
+O valor de cada célula ponderada foi calculado utilizando:
 
 ```text
 Peso × Nota = Resultado
+```
 
-Exemplo (Complexidade operacional, Alternativa A):
+Exemplo para o critério **Complexidade operacional** da Alternativa A:
+
+```text
+Peso = 3
+Nota = 5
+
 3 × 5 = 15
 ```
 
 ---
 
-## Resultado
+## 8. Resultado da matriz
 
-- **Total da Alternativa A (manter arquitetura atual):** 49
-- **Total da Alternativa B (orientada a eventos):** 36
-- **Total da Alternativa C (microsserviços):** 31
+Os totais obtidos foram:
 
-### Alternativa com maior pontuação
+| Alternativa | Total |
+|---|---:|
+| A — Manter arquitetura atual | **49** |
+| B — Arquitetura orientada a eventos | **36** |
+| C — Microsserviços | **31** |
 
-**Alternativa A — manter a arquitetura em camadas simples.**
+A Alternativa A recebeu a maior pontuação na matriz.
 
-### Observação
+Entretanto, a pontuação não foi utilizada isoladamente para definir a decisão arquitetural.
 
-A maior pontuação não determinou sozinha a decisão. O grupo também considerou:
+Também foram considerados o contexto do projeto, os custos, os riscos e os trade-offs envolvidos em cada alternativa.
 
-- **Custos:** migrar para B ou C exigiria reescrever o `HospitalPublisher`/observers (B) ou dividir o sistema em serviços independentes com deploys e contratos de API (C), sem que exista hoje uma demanda real de escala que justifique esse investimento dentro do prazo do semestre.
-- **Riscos:** o maior risco atual (segurança dos dados do paciente em trânsito e nos logs, e o bug de observer único do `HospitalPublisher`) é um **problema de implementação**, corrigível dentro da própria Alternativa A, e não uma limitação intrínseca do estilo em camadas.
-- **Complexidade:** B e C exigem infraestrutura (broker de mensagens, orquestração de serviços) que a equipe não possui hoje.
-- **Contexto do projeto:** é um sistema acadêmico, com equipe pequena e prazo de semestre — não há requisito real de escala/carga que justifique migração.
+---
 
-A decisão final (manter a arquitetura atual com melhorias internas) está registrada e justificada na atividade principal (`Relatório de Análise e Decisão Arquitetural — Aula 06`, seção 8).
+## 9. Análise do resultado
+
+### Alternativa A
+
+A arquitetura atual apresenta como principais vantagens:
+
+- menor complexidade operacional;
+- menor esforço de migração;
+- estrutura já conhecida pela equipe;
+- ausência de necessidade de infraestrutura adicional.
+
+Os principais problemas identificados, como o comportamento do `HospitalPublisher`, podem ser tratados internamente sem exigir uma mudança completa de arquitetura.
+
+### Alternativa B
+
+A arquitetura orientada a eventos apresenta vantagens principalmente relacionadas a:
+
+- desacoplamento;
+- confiabilidade na entrega de eventos;
+- possibilidade de reprocessamento;
+- comunicação assíncrona.
+
+Entretanto, exigiria:
+
+- infraestrutura de mensageria;
+- configuração e manutenção de um broker;
+- mudanças importantes na comunicação existente;
+- maior conhecimento operacional da equipe.
+
+### Alternativa C
+
+A divisão em microsserviços poderia proporcionar:
+
+- maior isolamento entre os domínios;
+- evolução independente de serviços;
+- possibilidade de escalabilidade individual.
+
+Por outro lado, exigiria:
+
+- separação do sistema atual;
+- criação de contratos entre serviços;
+- comunicação pela rede;
+- múltiplos processos e deploys;
+- maior complexidade de monitoramento;
+- maior esforço de desenvolvimento.
+
+---
+
+## 10. Contexto considerado
+
+A decisão também considerou que o MediConnect:
+
+- é um projeto acadêmico;
+- possui uma equipe pequena;
+- é desenvolvido durante um semestre;
+- utiliza atualmente um único projeto Maven;
+- não possui infraestrutura distribuída;
+- não possui requisito comprovado de alta escala;
+- possui problemas que ainda podem ser solucionados dentro da estrutura atual.
+
+---
+
+## 11. Decisão
+
+Com base na matriz e na análise dos trade-offs, foi decidido manter a arquitetura atual em camadas simples e realizar melhorias internas nos pontos identificados.
+
+Essa decisão está detalhada em:
+
+`docs/Entrega_Aula6/README-Aula06.md`
+
+e relacionada à decisão arquitetural registrada em:
+
+`docs/adr/ADR-0001.md`
+
+A arquitetura poderá ser reavaliada futuramente caso os requisitos ou o contexto do MediConnect mudem.

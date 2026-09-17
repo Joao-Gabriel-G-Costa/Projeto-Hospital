@@ -1,187 +1,413 @@
-# Aula 06 — Atividade de Análise Arquitetural
+# Aula 06 — Análise Arquitetural do MediConnect
 
 ## Objetivo
 
-Analisar a arquitetura atual do projeto do grupo, relacionar requisitos funcionais e não funcionais às decisões arquiteturais e justificar tecnicamente a manutenção ou a evolução da arquitetura.
-
-> **Importante:** 
+Analisar a arquitetura atual do MediConnect, relacionar requisitos funcionais e não funcionais às decisões arquiteturais e comparar alternativas possíveis considerando benefícios, custos, riscos e trade-offs.
 
 ---
 
 ## 1. Identificação
 
-- **Projeto:** MediConnect — Sistema de Gestão Hospitalar (projeto acadêmico semestral)
+- **Projeto:** MediConnect — Sistema de Gestão Hospitalar
 - **Grupo:** MediConnect
-- **Integrantes:** Ana Julia, João Gabriel, Rodrigo Yank
-- **Data:** 05 de Setembro de 2026
+- **Integrantes:** Ana Julia, João Gabriel e Rodrigo Yank
+- **Data:** 05 de setembro de 2026
 
 ---
 
 ## 2. Arquitetura atual
 
-Consistente com `docs/adr/ADR-0001-arquitetura.md`, o MediConnect adota uma arquitetura em camadas simples, executada em processo único, com chamadas síncronas diretas entre os componentes.
+Conforme registrado em `docs/adr/ADR-0001.md`, o MediConnect utiliza atualmente uma arquitetura em camadas simples, executada em processo único e com chamadas síncronas entre os componentes.
 
 ### 2.1 Estrutura identificada
 
-- **Entrada:** `Main` inicializa a fachada e dispara as primeiras chamadas.
-- **Fachada:** `MediConnectFacade` concentra o acesso externo ao sistema (cadastro de paciente, agendamento, solicitação de exame).
-- **Serviço de aplicação:** `HospitalApplicationService` orquestra agendamento de consultas, solicitação de exames e internação, chamando repositórios, padrões de apoio e adapters.
-- **Repositórios em memória:** `InMemoryPatientRepository` e `InMemoryAppointmentRepository` persistem os dados durante a execução.
-- **Padrões de criação:** `AppointmentFactory` cria consultas definindo prioridade por tipo de atendimento; `PartnerFamilyFactory` cria integrações com parceiros externos.
-- **Padrão de estratégia:** `TriageEngine` + `PriorityStrategy` calculam a prioridade de atendimento de forma substituível.
-- **Padrão de comportamento (Observer):** `HospitalPublisher` notifica observers (`PatientNotificationObserver`, `AuditObserver`) quando um evento de domínio ocorre.
-- **Adapters para sistemas legados:** `LabAdapter` e `HealthPlanAdapter` isolam a comunicação com o laboratório (`LabXClient`) e a operadora de convênio (`LegacyHealthPlanApi`).
-- **Notificações:** `NotificationService` encaminha mensagens por e-mail, SMS ou WhatsApp (`WhatsappHospitalApi`).
+Os principais elementos encontrados são:
 
-### 2.2 Evidências no projeto
+- **Main:** ponto de entrada da aplicação.
+- **MediConnectFacade:** fornece uma interface simplificada para acesso às funcionalidades principais.
+- **HospitalApplicationService:** coordena os principais fluxos hospitalares.
+- **Repositórios em memória:** armazenam pacientes e consultas durante a execução.
+- **NotificationService:** concentra o envio das notificações.
+- **HospitalPublisher:** publica eventos internos utilizando o padrão Observer.
+- **Adapters:** isolam parte da integração com sistemas externos.
+- **Factories e Strategies:** auxiliam na criação e priorização de objetos e atendimentos.
 
-- Evidência 1: `service/HospitalApplicationService.java` — método `schedule(Appointment a)` chama `patients.find(...)`, `appointments.save(...)`, `notifications.notify(...)` e `publisher.publish(...)` de forma síncrona, dentro do mesmo método.
-- Evidência 2: `patterns/observer/HospitalPublisher.java` — guarda um único observer (`private HospitalObserver observer;`), não uma lista; `subscribe(o)` sobrescreve qualquer observer anterior.
-- Evidência 3: `service/NotificationService.java` e `legacy/WhatsappHospitalApi.java` — imprimem telefone e texto do paciente em texto plano via `System.out`, sem criptografia.
-- Evidência 4: `patterns/adapter/HealthPlanAdapter.java` — `extends LegacyHealthPlanApi` (herança direta da API legada, em vez de composição).
-- Evidência 5: `README.md` — confirma execução com `mvn compile` e `java -cp target/classes br.edu.mediconnect.Main`, sem infraestrutura adicional.
+---
 
-### 2.3 Diagrama simplificado da arquitetura atual
+## 2.2 Evidências no código
+
+### HospitalApplicationService
+
+A classe `HospitalApplicationService` coordena diferentes operações.
+
+No método `schedule(...)`, por exemplo, são realizadas as seguintes etapas:
+
+1. busca do paciente;
+2. alteração do status da consulta;
+3. persistência da consulta;
+4. envio de notificação;
+5. publicação de evento.
+
+Essas chamadas são realizadas de forma síncrona no mesmo fluxo.
+
+### HospitalPublisher
+
+O arquivo:
+
+`src/main/java/br/edu/mediconnect/patterns/observer/HospitalPublisher.java`
+
+possui atualmente:
+
+```java
+private HospitalObserver observer;
+```
+
+e:
+
+```java
+public void subscribe(HospitalObserver o) {
+    observer = o;
+}
+```
+
+Isso significa que apenas um observer é armazenado por vez.
+
+Quando um novo observer é cadastrado, o anterior é substituído.
+
+### NotificationService
+
+O serviço de notificações utiliza `System.out` e a classe `WhatsappHospitalApi` para representar os canais de comunicação.
+
+No estado atual, informações como e-mail, telefone e mensagens podem aparecer diretamente na saída do programa.
+
+### HealthPlanAdapter
+
+O `HealthPlanAdapter` possui dependência direta da implementação legada do convênio.
+
+Isso aumenta o acoplamento entre o adapter e a API que deveria ser isolada.
+
+---
+
+## 2.3 Diagrama simplificado da arquitetura atual
 
 ```mermaid
 flowchart TD
-    Main["Main (entrada)"] --> Facade["MediConnectFacade"]
+
+    Main["Main"] --> Facade["MediConnectFacade"]
+
     Facade --> Service["HospitalApplicationService"]
-    Service --> Factory["AppointmentFactory / PartnerFamilyFactory"]
-    Service --> Strategy["TriageEngine + PriorityStrategy"]
-    Service --> Repo["Repositórios em memória\n(Patient, Appointment)"]
-    Service --> Publisher["HospitalPublisher (Observer)\n⚠ único observer, não lista"]
-    Publisher --> PatientObs["PatientNotificationObserver"]
-    Publisher --> AuditObs["AuditObserver"]
-    Repo --> Notif["NotificationService"]
-    Notif --> WA["WhatsappHospitalApi (legado)\n⚠ sem TLS, log em texto plano"]
-    Strategy --> Adapter["LabAdapter / HealthPlanAdapter"]
-    Adapter --> Legacy["LabXClient / LegacyHealthPlanApi (legado)"]
+    Facade --> PatientRepo["InMemoryPatientRepository"]
+
+    Service --> PatientRepo
+    Service --> AppointmentRepo["InMemoryAppointmentRepository"]
+
+    Service --> Notification["NotificationService"]
+
+    Service --> HealthAdapter["HealthPlanAdapter"]
+    Service --> LabAdapter["LabAdapter"]
+
+    HealthAdapter --> HealthLegacy["LegacyHealthPlanApi"]
+    LabAdapter --> LabClient["LabXClient"]
+
+    Notification --> WhatsApp["WhatsappHospitalApi"]
+
+    Service --> Publisher["HospitalPublisher"]
+
+    Publisher --> Observer["HospitalObserver"]
+
+    PatientObserver["PatientNotificationObserver"] -. implementa .-> Observer
+    AuditObserver["AuditObserver"] -. implementa .-> Observer
 ```
+
+O diagrama representa as dependências existentes no código atual.
 
 ---
 
 ## 3. Requisitos funcionais analisados
 
-| ID | Requisito funcional | Evidência no projeto |
+Foram selecionados dois requisitos funcionais relevantes para a análise arquitetural.
+
+| ID | Requisito funcional | Evidência |
 |---|---|---|
-| RF01 | O sistema deve permitir agendar uma consulta vinculada a um paciente já cadastrado, definindo status inicial e prioridade conforme o tipo de atendimento (ex.: EMERGENCY, TELEMEDICINE). | `AppointmentFactory.create(...)` define a prioridade por tipo; `HospitalApplicationService.schedule(a)` valida o paciente, define `status="SCHEDULED"`, persiste e notifica. |
-| RF02 | O sistema deve permitir solicitar um exame para um paciente, autorizando-o junto ao convênio antes de enviá-lo ao laboratório parceiro. | `HospitalApplicationService.requestExam(e, custo)` chama `HealthPlanAdapter.authorize(...)` e, se autorizado, `LabAdapter.request(...)`; o status final fica em `ExamRequest.status`. |
+| RF01 | O sistema deve permitir agendar uma consulta para um paciente cadastrado. | `HospitalApplicationService.schedule(...)` valida o paciente, altera o status da consulta e salva o registro. |
+| RF02 | O sistema deve permitir solicitar exames e verificar autorização do convênio antes do envio ao laboratório. | `HospitalApplicationService.requestExam(...)` utiliza `HealthPlanAdapter` e `LabAdapter`. |
 
 ---
 
 ## 4. Requisitos não funcionais analisados
 
-| ID | Requisito não funcional | Como pode ser verificado |
+Foram considerados quatro requisitos não funcionais relevantes.
+
+| ID | Requisito não funcional | Forma de verificação |
 |---|---|---|
-| RNF01 | Segurança: dados sensíveis do paciente (telefone, e-mail, autorização de convênio) não podem ser expostos em texto plano em logs; comunicação com parceiros externos deve ocorrer em canal criptografado (TLS). | Revisão de código/análise estática procurando PII em `System.out`; teste simulando canal sem TLS e esperando falha/bloqueio. |
-| RNF02 | Desempenho: o fluxo de agendamento (`schedule`) deve responder em até 300ms sob carga normal, considerando que hoje todas as chamadas são síncronas e locais. | Teste de desempenho/benchmark sobre `HospitalApplicationService.schedule(...)`. |
-| RNF03 | Confiabilidade/Disponibilidade: toda notificação relevante deve ser efetivamente entregue a todos os observers cadastrados (paciente e auditoria), e falha em um observer não pode interromper o fluxo de negócio principal. | Teste unitário registrando 2 observers e verificando que ambos recebem o evento; teste forçando exceção em um observer. |
-| RNF04 | Manutenibilidade: a integração com cada parceiro externo deve ficar isolada em um adaptador dedicado, sem herança da API legada, permitindo trocar o parceiro sem alterar `HospitalApplicationService`. | Revisão de código/teste de contrato garantindo baixo acoplamento entre serviço e implementação legada. |
+| RNF01 | **Segurança:** informações sensíveis de pacientes não devem ser expostas indevidamente. | Revisão dos pontos onde e-mail, telefone e mensagens são enviados ou registrados. |
+| RNF02 | **Desempenho:** os principais fluxos devem responder em tempo adequado para utilização do sistema. | Testes de desempenho sobre operações como `schedule(...)` e `requestExam(...)`. |
+| RNF03 | **Confiabilidade/Disponibilidade:** eventos relevantes devem ser entregues corretamente aos componentes interessados sem comprometer o fluxo principal. | Testes envolvendo múltiplos observers e falhas durante a notificação. |
+| RNF04 | **Manutenibilidade:** integrações externas devem permanecer isoladas para reduzir o acoplamento com sistemas legados. | Revisão das dependências existentes nos adapters. |
 
 ---
 
-## 5. Relação RNF × parte da arquitetura
+## 5. Relação entre RNFs e arquitetura
 
-| RNF | Parte da arquitetura afetada | Justificativa |
+| RNF | Parte da arquitetura | Relação |
 |---|---|---|
-| RNF01 | `NotificationService` + `legacy/WhatsappHospitalApi`; `patterns/adapter/*` | São os pontos onde dados do paciente saem do sistema para canais externos, hoje sem criptografia nem mascaramento — `NotificationService.notify(...)` imprime destinatário e texto via `System.out`. |
-| RNF02 | `service/HospitalApplicationService.java` | O método `requestExam()` encadeia, na mesma thread, validação, autorização de convênio, envio ao laboratório, notificação e publicação de evento, tudo de forma síncrona. |
-| RNF03 | `patterns/observer/HospitalPublisher.java` | A classe só mantém um campo `observer` (não uma lista); `HospitalApplicationService` registra `PatientNotificationObserver` e depois `AuditObserver` no construtor, e apenas o último permanece ativo. |
-| RNF04 | `patterns/adapter/HealthPlanAdapter.java`; `patterns/abstractfactory/PartnerFamilyFactory.java` | `HealthPlanAdapter` estende diretamente a classe legada (herança) e expõe `legacyAuthorize()`; `PartnerFamilyFactory` devolve `Object` sem contrato comum. |
+| RNF01 | `NotificationService` e integrações externas | São pontos em que informações do paciente são utilizadas fora do fluxo principal. |
+| RNF02 | `HospitalApplicationService` | Concentra várias operações síncronas em um mesmo fluxo. |
+| RNF03 | `HospitalPublisher` e observers | O publisher atualmente armazena apenas um observer por vez. |
+| RNF04 | `HealthPlanAdapter` e `LabAdapter` | São responsáveis por isolar as integrações com sistemas externos. |
 
 ---
 
-## 6. Problema arquitetural identificado
+## 6. Problema identificado
 
-### Problema identificado
+Um problema concreto encontrado está relacionado ao padrão Observer.
 
-O `ADR-0001-arquitetura.md` já registrava, como consequência aceita da arquitetura em camadas, que falhas em integrações externas ou em observadores poderiam afetar o fluxo principal se não fossem tratadas com cuidado. Essa previsão se confirmou: `HospitalPublisher` guarda um único observer em vez de uma lista, então nem todo observer cadastrado é de fato notificado.
+Atualmente, `HospitalPublisher` possui apenas:
 
-### Evidência
+```java
+private HospitalObserver observer;
+```
 
-`patterns/observer/HospitalPublisher.java` — campo `private HospitalObserver observer;` e método `subscribe(HospitalObserver o){ observer = o; }`, que sobrescreve qualquer observer anterior. `HospitalApplicationService` registra `PatientNotificationObserver` e, em seguida, `AuditObserver` no construtor — apenas o segundo permanece ativo. Comportamento reproduzido em `src/test/java/br/edu/mediconnect/DiagnosticChecks.java`.
+O método:
 
-### Consequência possível
+```java
+subscribe(...)
+```
 
-O paciente pode deixar de ser notificado sobre agendamentos, exames e internações, mesmo que o evento tenha sido processado e persistido com sucesso — um risco direto para o RNF03 (confiabilidade), silencioso porque o sistema não lança nenhum erro visível quando isso ocorre.
+substitui o observer anteriormente registrado.
+
+No construtor de `HospitalApplicationService`, são cadastrados:
+
+```java
+publisher.subscribe(new PatientNotificationObserver());
+publisher.subscribe(new AuditObserver());
+```
+
+Como o segundo cadastro substitui o primeiro, apenas o último observer permanece registrado.
+
+### Consequência
+
+Um componente que deveria receber determinados eventos pode deixar de ser notificado.
+
+Esse comportamento afeta diretamente o requisito:
+
+**RNF03 — Confiabilidade/Disponibilidade.**
+
+O problema já pode ser observado através do diagnóstico existente em:
+
+`src/test/java/br/edu/mediconnect/DiagnosticChecks.java`
 
 ---
 
 ## 7. Alternativas arquiteturais
 
-- **Alternativa A:** Manter a arquitetura atual em camadas simples, corrigindo o defeito do `HospitalPublisher` e reforçando segurança internamente.
-- **Alternativa B:** Migrar para uma arquitetura orientada a eventos com message broker (fila/tópico), publicando e consumindo eventos de domínio (agendamento, exame, internação) de forma assíncrona.
-- **Alternativa C:** Migrar para microsserviços por domínio (agendamento/exames, laboratório, convênio), comunicando-se via API.
+Foram analisadas três alternativas.
+
+### Alternativa A — Manter a arquitetura atual
+
+Manter a arquitetura em camadas simples e realizar melhorias internas nos pontos identificados.
+
+Possíveis melhorias:
+
+- permitir múltiplos observers;
+- melhorar o tratamento de falhas;
+- reduzir exposição de dados em logs;
+- reduzir acoplamento das integrações legadas.
+
+### Alternativa B — Arquitetura orientada a eventos
+
+Utilizar um sistema de mensageria para publicação e consumo assíncrono de eventos.
+
+Possíveis benefícios:
+
+- desacoplamento;
+- possibilidade de reprocessamento;
+- maior isolamento entre produtores e consumidores.
+
+Custos:
+
+- necessidade de infraestrutura adicional;
+- maior complexidade operacional;
+- maior esforço de implementação.
+
+### Alternativa C — Microsserviços
+
+Separar partes do domínio em serviços independentes, por exemplo:
+
+- agendamento;
+- exames;
+- convênio;
+- laboratório.
+
+Possíveis benefícios:
+
+- isolamento entre domínios;
+- possibilidade de evolução independente;
+- escalabilidade por serviço.
+
+Custos:
+
+- maior complexidade;
+- comunicação distribuída;
+- múltiplos deploys;
+- maior esforço de manutenção.
 
 ---
 
-## 8. Matriz de decisão arquitetural
+## 8. Matriz de decisão
 
-A matriz completa (critérios, pesos, notas, cálculo `Peso × Nota` e totais) está no arquivo `MODELO-MATRIZ-DECISAO-preenchido.md`.
+A comparação detalhada entre as alternativas está registrada em:
 
-Resumo dos totais obtidos:
+`docs/Entrega_Aula6/MATRIZ-DECISAO.md`
 
-| Alternativa | Total |
+Os resultados obtidos foram:
+
+| Alternativa | Pontuação |
 |---|---:|
 | A — Manter arquitetura atual | **49** |
 | B — Arquitetura orientada a eventos | 36 |
-| C — Microsserviços por domínio | 31 |
+| C — Microsserviços | 31 |
+
+As justificativas das notas estão registradas em:
+
+`docs/Entrega_Aula6/JUSTIFICATIVAS-NOTAS.md`
 
 ---
 
-## 9. Justificativa das notas
+## 9. Decisão arquitetural
 
-As justificativas de cada nota atribuída na matriz (critério, alternativa, nota, motivo e evidência do projeto) estão detalhadas no arquivo `MODELO-JUSTIFICATIVAS-NOTAS-preenchido.md`.
+A decisão foi **manter a arquitetura atual em camadas simples**, conforme já registrado em:
 
----
+`docs/adr/ADR-0001.md`
 
-## 10. Decisão arquitetural
+A decisão considera não apenas a pontuação da matriz, mas também o contexto atual do projeto.
 
-### Alternativa escolhida ou mantida
+O MediConnect:
 
-**Alternativa A — manter a arquitetura em camadas simples**, confirmando a decisão já registrada em `ADR-0001-arquitetura.md`.
+- possui equipe pequena;
+- é um projeto acadêmico semestral;
+- utiliza um único módulo Maven;
+- não apresenta atualmente requisito comprovado de grande escala;
+- não possui infraestrutura de mensageria ou microsserviços.
 
-### Justificativa da decisão
-
-A Alternativa A obteve a maior pontuação na matriz (49 contra 36 e 31), mas a escolha não se apoia só nisso: os problemas reais encontrados (bug de observer único e ausência de TLS/mascaramento de dados) são falhas de implementação, corrigíveis dentro do próprio estilo em camadas, e não limitações do estilo em si. Migrar para eventos ou microsserviços aumentaria a complexidade operacional e o custo de manutenção para uma equipe pequena e um prazo de semestre, sem que exista hoje um requisito real de escala que justifique esse investimento.
-
-
----
-
-## 11. Trade-off
-
-- **Ganho:** baixa complexidade operacional e baixo custo de manutenção — o sistema continua rodando com `mvn compile` e `java -cp target/classes`, sem infraestrutura adicional, compatível com o prazo do semestre.
-- **Custo ou consequência:** o sistema segue sem reentrega automática de notificações em caso de falha (o que um broker de eventos ofereceria); a robustez depende inteiramente da implementação correta do publisher e dos observers.
-- **Trade-off aceito pelo grupo:** o grupo aceita abrir mão, por ora, de uma entrega de notificações mais resiliente via fila em troca de simplicidade e previsibilidade de custo, já que não há hoje volume de uso que justifique a infraestrutura adicional. Em compensação, o grupo se compromete a corrigir os dois problemas concretos encontrados (observer único e falta de TLS/mascaramento) dentro da própria arquitetura atual.
+Os principais problemas encontrados podem ser tratados através de melhorias internas sem a necessidade de alterar o estilo arquitetural completo.
 
 ---
 
-## 12. Arquitetura proposta
+## 10. Trade-offs
 
-A arquitetura é **mantida** em camadas simples. Os pontos destacados abaixo (✔) são as melhorias internas recomendadas — nenhuma delas muda o estilo arquitetural.
+### Benefícios da decisão
+
+- menor complexidade operacional;
+- menor esforço de manutenção;
+- menor custo de evolução;
+- arquitetura mais simples para a equipe atual;
+- não exige nova infraestrutura.
+
+### Custos e riscos
+
+Manter uma arquitetura síncrona e executada em processo único significa que:
+
+- falhas em integrações podem afetar o fluxo principal;
+- não existe reentrega automática de eventos;
+- a confiabilidade depende da implementação correta dos componentes;
+- um aumento significativo de escala poderá exigir nova avaliação arquitetural.
+
+### Trade-off aceito
+
+O grupo aceita manter uma solução mais simples no momento, mesmo abrindo mão de recursos de resiliência e desacoplamento que poderiam ser oferecidos por mensageria ou microsserviços.
+
+Essa decisão poderá ser revista caso o contexto do projeto mude.
+
+---
+
+## 11. Melhorias propostas
+
+A decisão desta aula **não exige que as melhorias abaixo já estejam implementadas**.
+
+Elas representam pontos de evolução identificados a partir da análise arquitetural.
+
+### Observer
+
+Evoluir o `HospitalPublisher` para permitir múltiplos observers em vez de manter apenas um.
+
+### Segurança
+
+Evitar exposição desnecessária de dados sensíveis em logs e definir mecanismos adequados de segurança quando as integrações externas forem reais.
+
+### Adapters
+
+Reduzir o acoplamento entre os adapters e as implementações legadas, utilizando contratos e composição quando adequado.
+
+### Tratamento de falhas
+
+Evitar que uma falha em notificações ou integrações secundárias interrompa operações principais do sistema.
+
+---
+
+## 12. Arquitetura mantida com melhorias propostas
 
 ```mermaid
 flowchart TD
-    Main["Main (entrada)"] --> Facade["MediConnectFacade"]
+
+    Main["Main"] --> Facade["MediConnectFacade"]
+
     Facade --> Service["HospitalApplicationService"]
-    Service --> Factory["AppointmentFactory / PartnerFamilyFactory"]
-    Service --> Strategy["TriageEngine + PriorityStrategy"]
-    Service --> Repo["Repositórios em memória\n(Patient, Appointment)"]
-    Service --> Publisher["HospitalPublisher (Observer)\n✔ corrigido: List&lt;HospitalObserver&gt;"]
-    Publisher --> PatientObs["PatientNotificationObserver"]
-    Publisher --> AuditObs["AuditObserver"]
-    Repo --> Notif["NotificationService"]
-    Notif --> WA["WhatsappHospitalApi (legado)\n✔ TLS + dados mascarados no log"]
-    Strategy --> Adapter["LabAdapter / HealthPlanAdapter\n✔ composição, não herança"]
-    Adapter --> Legacy["LabXClient / LegacyHealthPlanApi (legado)"]
+
+    Service --> Repo["Repositórios"]
+    Service --> Notification["NotificationService"]
+    Service --> Adapters["Adapters"]
+    Service --> Publisher["HospitalPublisher"]
+
+    Publisher --> Observers["HospitalObserver"]
+
+    Notification --> ExternalNotification["Canal externo"]
+    Adapters --> ExternalSystems["Sistemas parceiros"]
+
+    Improvements["Melhorias propostas:
+    múltiplos observers
+    tratamento de falhas
+    menor exposição de dados
+    menor acoplamento"]
+
+    Improvements -. evolução .-> Publisher
+    Improvements -. evolução .-> Notification
+    Improvements -. evolução .-> Adapters
 ```
 
-Pontos preservados: fachada única, serviço de aplicação central, repositórios em memória, uso dos padrões Factory/Strategy/Observer/Adapter. Pontos evoluídos internamente: lista de observers no `HospitalPublisher`, TLS/mascaramento de dados sensíveis em `NotificationService`/`WhatsappHospitalApi`, e composição (em vez de herança) em `HealthPlanAdapter`. Caso surjam requisitos reais de escala ou resiliência mais adiante, a migração para eventos ou microsserviços deverá ser reavaliada em um novo ADR.
+Esse diagrama representa a manutenção do estilo arquitetural atual e os pontos que podem ser evoluídos posteriormente.
 
 ---
 
-## 13. Conclusão
+## 13. Validação
 
-Foi identificado que a arquitetura em camadas do MediConnect, já decidida em `ADR-0001-arquitetura.md`, apresenta dois problemas concretos de implementação: um defeito no padrão Observer (`HospitalPublisher` aceita apenas um observer) que compromete a confiabilidade das notificações, e a ausência de criptografia/mascaramento de dados sensíveis nas integrações externas. Três alternativas foram comparadas em matriz de decisão ponderada — manter a arquitetura atual, migrar para eventos ou migrar para microsserviços — e a primeira obteve a maior pontuação (49 contra 36 e 31), sustentada por menor complexidade operacional e custo, sem abrir mão da possibilidade de corrigir os problemas encontrados dentro do próprio estilo. A decisão tomada foi manter a arquitetura em camadas, aplicando três melhorias internas (lista de observers, TLS/mascaramento de logs, composição no adapter). Essa decisão é adequada ao projeto neste momento porque a equipe é pequena, o prazo é de um semestre e não há, hoje, requisito real de escala que justifique o custo e a complexidade de uma migração arquitetural.
+A atividade da Aula 06 é principalmente de análise e documentação arquitetural.
 
+Não foi necessária uma migração arquitetural nem alteração obrigatória de código para cumprir a atividade.
+
+Após os ajustes realizados anteriormente no projeto, a compilação e os testes foram verificados com:
+
+```bash
+mvn clean test
+```
+
+Resultado:
+
+```text
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+---
+
+## 14. Conclusão
+
+A análise mostrou que a arquitetura em camadas simples continua adequada ao contexto atual do MediConnect.
+
+Foram identificados problemas concretos de implementação, principalmente no mecanismo de observers, além de pontos de atenção relacionados à segurança e ao acoplamento com sistemas externos.
+
+Três alternativas arquiteturais foram comparadas: manutenção da arquitetura atual, arquitetura orientada a eventos e microsserviços.
+
+Considerando requisitos, custos, riscos, complexidade e contexto do projeto, foi mantida a arquitetura atual.
+
+As melhorias identificadas serão tratadas como evolução interna do sistema e não como uma migração arquitetural obrigatória.
