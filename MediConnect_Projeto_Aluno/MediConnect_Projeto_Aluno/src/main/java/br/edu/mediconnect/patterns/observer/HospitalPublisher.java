@@ -1,1 +1,19 @@
-package br.edu.mediconnect.patterns.observer; public class HospitalPublisher { private HospitalObserver observer; public void subscribe(HospitalObserver o){observer=o;} public void publish(String id,String e){if(observer!=null)observer.update(id,e);} }
+package br.edu.mediconnect.patterns.observer;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class HospitalPublisher {
+
+    private final List<HospitalObserver> observers = new ArrayList<>();
+
+    public void subscribe(HospitalObserver observer) {
+        observers.add(observer);
+    }
+
+    public void publish(String entityId, String event) {
+        for (HospitalObserver observer : observers) {
+            observer.update(entityId, event);
+        }
+    }
+}
