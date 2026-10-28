@@ -21,6 +21,14 @@ mvn compile
 java -cp target/classes br.edu.mediconnect.Main
 ```
 
+### Distribuição (Aula 13)
+O `pom.xml` registra `Main-Class` no manifest, então o JAR gerado roda sozinho:
+```bash
+mvn clean package
+java -jar target/mediconnect-0.1.0-LEGADO.jar
+```
+O JAR não tem dependências de execução (o JUnit é só de teste); para executá-lo em outra pasta ou computador basta o arquivo `.jar` e um Java 17 ou superior.
+
 ## Atividades
 Os arquivos `atividades/README_MediConnect_AulaXX.md` orientam a evolução de cada aula. O aluno deve começar o trabalho em sala e registrar as evidências no GitHub.
 
